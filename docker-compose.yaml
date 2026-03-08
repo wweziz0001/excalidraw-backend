@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  dex:
+    image: ghcr.io/dexidp/dex:v2.37.0
+    container_name: excalidraw-dex-test
+    restart: unless-stopped
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    ports:
+      - "5556:5556"
+    env_file:
+      - .env
+    volumes:
+      - ./config/dex.config.yaml:/etc/dex/config.yaml
+
+  backend_full:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: excalidraw-backend:1
+    container_name: excalidraw-backend-test
+    restart: unless-stopped
+    depends_on:
+      - dex
+    ports:
+      - "3002:3002"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
