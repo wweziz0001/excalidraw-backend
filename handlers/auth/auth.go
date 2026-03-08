@@ -271,7 +271,7 @@ func HandleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	url := oidcOauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	url := oidcOauthConfig.AuthCodeURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
@@ -291,28 +291,28 @@ func HandleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	token, err := oidcOauthConfig.Exchange(context.Background(), code)
 	if err != nil {
 		logrus.Errorf("failed to exchange token: %s", err.Error())
-		http.Error(w, "failed to exchange token", http.StatusInternalServerError)
+		http.Error(w, "failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		logrus.Error("no id_token in token response")
-		http.Error(w, "missing id_token", http.StatusInternalServerError)
+		http.Error(w, "missing id_token in token response", http.StatusInternalServerError)
 		return
 	}
 
 	idToken, err := verifier.Verify(context.Background(), rawIDToken)
 	if err != nil {
 		logrus.Errorf("failed to verify ID token: %s", err.Error())
-		http.Error(w, "failed to verify id_token", http.StatusInternalServerError)
+		http.Error(w, "failed to verify id_token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	var claims OIDCClaims
 	if err := idToken.Claims(&claims); err != nil {
 		logrus.Errorf("failed to extract claims from ID token: %s", err.Error())
-		http.Error(w, "failed to parse claims", http.StatusInternalServerError)
+		http.Error(w, "failed to parse claims: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -337,7 +337,7 @@ func HandleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	jwtToken, err := createJWT(user)
 	if err != nil {
 		logrus.Errorf("failed to create JWT: %s", err.Error())
-		http.Error(w, "failed to create jwt", http.StatusInternalServerError)
+		http.Error(w, "failed to create jwt: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 

@@ -18,7 +18,7 @@ staticClients:
     redirectURIs:
       - {{ .Env.OIDC_REDIRECT_URL }}
     name: Excalidraw
-    public: true
+#    public: true
     secret: {{ .Env.OIDC_CLIENT_SECRET }}
 
 staticPasswords:
@@ -77,7 +77,7 @@ connectors:
         username: sAMAccountName
 
         # معرّف فريد للمستخدم
-        idAttr: objectGUID
+        idAttr: DN
 
         # حقل البريد الإلكتروني
         emailAttr: mail
