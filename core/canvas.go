@@ -10,7 +10,7 @@ type (
 	CanvasMeta struct {
 		ID           string    `json:"id"`
 		Name         string    `json:"name"`
-		Thumbnail string    `json:"thumbnail,omitempty"`
+		Thumbnail	 string    `json:"thumbnail,omitempty"`
 		CreatedAt    time.Time `json:"createdAt"`
 		UpdatedAt    time.Time `json:"updatedAt"`
 	}
@@ -20,7 +20,7 @@ type (
 		ID           string    `json:"id"`
 		UserID       string    `json:"-"` // Internal ownership field, never exposed in JSON.
 		Name         string    `json:"name"`
-		Thumbnail string    `json:"thumbnail,omitempty"`
+		Thumbnail	 string    `json:"thumbnail,omitempty"`
 		Data         []byte    `json:"data,omitempty"` // Full serialized canvas payload.
 		CreatedAt    time.Time `json:"createdAt"`
 		UpdatedAt    time.Time `json:"updatedAt"`
@@ -29,7 +29,7 @@ type (
 	// CanvasStore defines the persistence layer for user-owned canvases.
 	CanvasStore interface {
 		// List returns lightweight metadata for all canvases owned by a user.
-		List(ctx context.Context, userID string) ([]*CanvasMeta, error)
+		List(ctx context.Context, userID string) ([]*Canvas, error)
 
 		// Get returns a single canvas by its ID, ensuring it belongs to the user.
 		Get(ctx context.Context, userID, id string) (*Canvas, error)

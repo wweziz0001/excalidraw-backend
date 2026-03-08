@@ -9,10 +9,10 @@ import (
 	authMiddleware "excalidraw-complete/middleware"
 	"excalidraw-complete/stores"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
-
+	"os/signal"
+	"syscall"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
