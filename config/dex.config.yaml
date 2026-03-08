@@ -26,3 +26,85 @@ staticPasswords:
     hash: {{ .Env.ADMIN_PASSWORD_HASH }}
     username: {{ .Env.ADMIN_USERNAME }}
     userID: {{ .Env.ADMIN_USER_ID }}
+
+# ============================================
+# LDAP Connector - Active Directory
+# ============================================
+connectors:
+  - type: ldap
+    name: ActiveDirectory
+    id: ad
+    config:
+      # ==================
+      # إعدادات الاتصال
+      # ==================
+
+      # IP أو hostname للـ Domain Controller
+      # للاتصال العادي (غير مُشفّر)
+      host: hz-domain.ittech-ye.net:636
+
+      # للاتصال المُشفّر (LDAPS) - مُوصى به للإنتاج
+      # host: YOUR_DC_IP:636
+      # insecureNoSSL: false
+      # startTLS: true
+
+      # تعطيل التحقق من الشهادة (للتجربة فقط)
+      # في الإنتاج: استخدم شهادة صالحة
+      insecureSkipVerify: true
+
+      # ==================
+      # بيانات الاتصال (Bind)
+      # ==================
+
+      # Service Account للاتصال بـ AD
+      bindDN: CN=Administrator,CN=Users,DC=ittech-ye,DC=net
+      bindPW: Aa123123@@
+
+      # ==================
+      # إعدادات البحث عن المستخدمين
+      # ==================
+
+      usernamePrompt: Username
+
+      userSearch:
+        # المكان الذي يبدأ منه البحث عن المستخدمين
+        baseDN: DC=ittech-ye,DC=net
+
+        # فلترة البحث - Active Directory
+        filter: "(objectClass=user)"
+
+        # حقل اسم المستخدم (sAMAccountName للـ AD)
+        username: sAMAccountName
+
+        # معرّف فريد للمستخدم
+        idAttr: objectGUID
+
+        # حقل البريد الإلكتروني
+        emailAttr: mail
+
+        # حقل الاسم الكامل
+        nameAttr: displayName
+
+        # البحث في كل الـ Subtrees
+        scope: sub
+
+      # ==================
+      # إعدادات البحث عن المجموعات
+      # ==================
+
+      groupSearch:
+        # المكان الذي يبدأ منه البحث عن المجموعات
+        baseDN: DC=ittech-ye,DC=net
+
+        # فلترة البحث
+        filter: "(objectClass=group)"
+
+        # طريقة ربط المستخدم بالمجموعة
+        userMatchers:
+          - userAttr: DN
+            groupAttr: member
+
+        # حقل اسم المجموعة
+        nameAttr: cn
+
+        scope: sub
