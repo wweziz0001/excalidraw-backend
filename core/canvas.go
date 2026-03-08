@@ -10,7 +10,7 @@ type (
 	CanvasMeta struct {
 		ID           string    `json:"id"`
 		Name         string    `json:"name"`
-		ThumbnailURL string    `json:"thumbnailUrl,omitempty"`
+		ThumbnailURL string    `json:"thumbnail,omitempty"`
 		CreatedAt    time.Time `json:"createdAt"`
 		UpdatedAt    time.Time `json:"updatedAt"`
 	}
@@ -20,7 +20,7 @@ type (
 		ID           string    `json:"id"`
 		UserID       string    `json:"-"` // Internal ownership field, never exposed in JSON.
 		Name         string    `json:"name"`
-		ThumbnailURL string    `json:"thumbnailUrl,omitempty"`
+		ThumbnailURL string    `json:"thumbnail,omitempty"`
 		Data         []byte    `json:"data,omitempty"` // Full serialized canvas payload.
 		CreatedAt    time.Time `json:"createdAt"`
 		UpdatedAt    time.Time `json:"updatedAt"`
