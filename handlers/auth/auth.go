@@ -284,39 +284,38 @@ func HandleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.FormValue("code")
 	if code == "" {
 		logrus.Error("no code in callback")
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		http.Error(w, "missing code", http.StatusBadRequest)
 		return
 	}
 
 	token, err := oidcOauthConfig.Exchange(context.Background(), code)
 	if err != nil {
 		logrus.Errorf("failed to exchange token: %s", err.Error())
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		http.Error(w, "failed to exchange token", http.StatusInternalServerError)
 		return
 	}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		logrus.Error("no id_token in token response")
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		http.Error(w, "missing id_token", http.StatusInternalServerError)
 		return
 	}
 
 	idToken, err := verifier.Verify(context.Background(), rawIDToken)
 	if err != nil {
 		logrus.Errorf("failed to verify ID token: %s", err.Error())
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		http.Error(w, "failed to verify id_token", http.StatusInternalServerError)
 		return
 	}
 
 	var claims OIDCClaims
 	if err := idToken.Claims(&claims); err != nil {
 		logrus.Errorf("failed to extract claims from ID token: %s", err.Error())
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		http.Error(w, "failed to parse claims", http.StatusInternalServerError)
 		return
 	}
 
-	// Create user from OIDC claims
 	user := &core.User{
 		Subject:   claims.Sub,
 		Login:     claims.PreferredUsername,
@@ -325,20 +324,32 @@ func HandleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		Name:      claims.Name,
 	}
 
-	// If preferred_username is not available, use email
 	if user.Login == "" && user.Email != "" {
 		user.Login = user.Email
+	}
+	if user.Login == "" {
+		user.Login = user.Subject
+	}
+	if user.Name == "" {
+		user.Name = user.Login
 	}
 
 	jwtToken, err := createJWT(user)
 	if err != nil {
 		logrus.Errorf("failed to create JWT: %s", err.Error())
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		http.Error(w, "failed to create jwt", http.StatusInternalServerError)
 		return
 	}
 
-	// Redirect to frontend with token
-	http.Redirect(w, r, fmt.Sprintf("/?token=%s", jwtToken), http.StatusTemporaryRedirect)
+	frontendURL := os.Getenv("FRONTEND_REDIRECT_URL")
+	if frontendURL == "" {
+		frontendURL = "/"
+	}
+
+	redirectURL := fmt.Sprintf("%s?token=%s", frontendURL, jwtToken)
+	logrus.Infof("OIDC callback success, redirecting to frontend: %s", redirectURL)
+
+	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
 func createJWT(user *core.User) (string, error) {
