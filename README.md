@@ -1,182 +1,229 @@
-# Excalidraw Full: Your Self-Hosted, Cloud-Ready Collaboration Platform
+# Excalidraw Backend
 
-[中文说明](./README_zh.md)
+A backend-only fork of `excalidraw-full`, focused on identity, canvas management, document access, flexible storage, and AI proxying.
 
-Excalidraw Full has evolved. It's no longer just a simple wrapper for Excalidraw, but a powerful, self-hosted collaboration platform with a "Bring Your Own Cloud" (BYOC) philosophy. It provides user authentication, multi-canvas management, and the unique ability to connect directly to your own cloud storage from the frontend.
+This repository removes the embedded frontend and keeps only the backend services needed to integrate with an existing Excalidraw frontend stack.
 
-The core idea is to let the backend handle user identity while giving you, the user, full control over where your data is stored.
+## Purpose
 
-## Core Differences from Official Excalidraw
+This project is designed for deployments where the frontend, scene storage backend, and collaboration room may already exist as separate services, and you want to add a dedicated backend that provides:
 
-- **Fully Self-Hosted Collaboration & Sharing**: Unlike the official version, all real-time collaboration and sharing features are handled by your own self-hosted backend, ensuring complete data privacy and control.
-- **Advanced Multi-Canvas Management**: Seamlessly create, save, and manage multiple canvases. Store your work on the server's backend (e.g., SQLite, S3) or connect the frontend directly to your personal cloud storage (e.g., Cloudflare KV) for true data sovereignty.
-- **Zero-Config AI Features**: Instantly access integrated OpenAI features like GPT-4 Vision after logging in—no complex client-side setup required. API keys are securely managed by the backend.
+- **Authentication via Dex (OIDC)**
+- **Multi-canvas management**
+- **Backend storage** with support for **SQLite**, **Filesystem**, and **S3**
+- **Sharing / document access**
+- **OpenAI proxy**
 
-![Multi-Canvas Management](./img/PixPin_2025-07-06_16-07-27.png)
+## Scope
 
-![Multi-Choice Storage](./img/PixPin_2025-07-06_16-08-29.png)
+This repository is intended to provide only the following backend capabilities:
 
-![Oauth2 Login](./img/PixPin_2025-07-06_16-09-24.png)
+1. **Authentication**
+   - Login through **Dex** using OpenID Connect
+   - Suitable for environments where Dex is connected to **LDAP** or another upstream identity provider
+   - Session and token handling for authenticated users
 
-![AI Features](./img/PixPin_2025-07-06_16-09-55.png)
+2. **Multi-Canvas Management**
+   - Create, list, retrieve, update, and delete canvases
+   - Associate canvases with authenticated users
+   - Support user-owned workspaces and persistent saved boards
 
-## Key Features
+3. **Backend Storage**
+   - `sqlite`
+   - `filesystem`
+   - `s3`
 
-- **GitHub Authentication**: Secure sign-in using GitHub OAuth.
-- **Multi-Canvas Management**: Users can create, save, and manage multiple drawing canvases.
-- **Flexible Data Storage (BYOC)**:
-    - **Default Backend Storage**: Out-of-the-box support for saving canvases on the server's storage (SQLite, Filesystem, S3).
-    - **Direct Cloud Connection**: The frontend can connect directly to your own cloud services like **Cloudflare KV** or **Amazon S3** for ultimate data sovereignty. Your credentials never touch our server.
-- **Real-time Collaboration**: The classic Excalidraw real-time collaboration is fully supported.
-- **Secure OpenAI Proxy**: An optional backend proxy for using OpenAI's GPT-4 Vision features, keeping your API key safe.
-- **All-in-One Binary**: The entire application, including the patched frontend and backend server, is compiled into a single Go binary for easy deployment.
+4. **Sharing / Document Access**
+   - Create shareable document or canvas links
+   - Retrieve shared canvases/documents through controlled backend endpoints
 
-## Frontend Canvas Storage Strategies
+5. **OpenAI Proxy**
+   - Optional backend proxy for OpenAI-compatible APIs
+   - Keeps API keys on the server side instead of exposing them in the browser
 
-- **IndexedDB**: A fast, secure, and scalable key-value store. No need to configure anything. Not login required.
-- **Backend Storage**: The backend can save the canvas to the server's storage (SQLite, Filesystem, S3). Synchronized in different devices.
-- **Cloudflare KV**: A fast, secure, and scalable key-value store. This requires deploying a companion Worker to your Cloudflare account. See the [**Cloudflare Worker Deployment Guide**](./cloudflare-worker/README.md) for detailed instructions.
-- **Amazon S3**: A reliable, scalable, and inexpensive object storage service. 
+## What was intentionally removed
 
-## Installation & Running
+Compared with the original upstream project structure, this repository is now **backend-only**.
 
-One Click Docker run [Excalidraw-Full](https://github.com/BetterAndBetterII/excalidraw-full).
+The following categories were intentionally removed or excluded from the deployment path:
 
-```bash
-# Example for Linux
-git clone https://github.com/BetterAndBetterII/excalidraw-full.git
-cd excalidraw-full
-mv .env.example .env
-touch ./excalidraw.db  # IMPORTANT: Initialize the SQLite DB, OTHERWISE IT WILL NOT START
-docker compose up -d
+- Embedded frontend serving
+- Patched frontend build pipeline
+- Excalidraw frontend submodule dependency for all-in-one deployment
+- Cloudflare Worker / BYOC frontend storage helpers
+- Built-in realtime collaboration room service
+- All-in-one Docker packaging for frontend + backend together
+
+## Repository layout
+
+```text
+.
+├── config/
+├── core/
+├── handlers/
+├── middleware/
+├── stores/
+├── .env.example
+├── .env.example.dex
+├── go.mod
+├── go.sum
+└── main.go
 ```
 
-The server will start, and you can access the application at `http://localhost:3002`.
+## Authentication model
 
+Authentication is handled through **Dex** using **OIDC**.
 
-<!-- Summary Folded -->
-<details>
-<summary>Use Simple Password Authentication(Dex OIDC)</summary>
+Typical flow:
 
-```bash
-# Example for Linux
-git clone https://github.com/BetterAndBetterII/excalidraw-full.git
-cd excalidraw-full
-mv .env.example.dex .env
-touch ./excalidraw.db  # IMPORTANT: Initialize the SQLite DB, OTHERWISE IT WILL NOT START
-docker compose -f docker-compose.dex.yml up -d
+```text
+User -> Excalidraw Frontend -> Excalidraw Backend -> Dex -> LDAP
 ```
 
-Change your password in `.env` file.
+Recommended use cases:
 
-```bash
-# apt install apache2-utils
-# Generate the password hash
-echo YOUR_NEW_PASSWORD | htpasswd -BinC 10 admin | cut -d: -f2 > .htpasswd
-# Update your .env file
-sed -i "s|ADMIN_PASSWORD_HASH=.*|ADMIN_PASSWORD_HASH='$(cat .htpasswd)'|" .env
-```
+- Internal enterprise deployments
+- LDAP-backed identity environments
+- Centralized SSO through Dex
 
-</details>
+## Storage backends
 
+The backend is designed to support multiple storage engines.
+
+### 1. SQLite
+Recommended as the default starting point.
+
+Use when:
+- You want a simple single-node deployment
+- You want easy backup and restore
+- You want minimal operational overhead
+
+### 2. Filesystem
+Useful when documents should be stored directly on mounted volumes.
+
+Use when:
+- You want direct file persistence on disk
+- You prefer simple host-mounted storage
+
+### 3. S3
+Recommended for scalable object storage deployments.
+
+Use when:
+- You want external object storage
+- You need scalability beyond local disk
+- You are using MinIO, AWS S3, or another compatible endpoint
 
 ## Configuration
 
-Configuration is managed via environment variables. For a full template, see the `.env.example` section below.
+Create a `.env` file from `.env.example.dex` when using Dex.
 
-### 1. Backend Configuration (Required)
-
-You must configure GitHub OAuth and a JWT secret for the application to function.
-
-- `GITHUB_CLIENT_ID`: Your GitHub OAuth App's Client ID.
-- `GITHUB_CLIENT_SECRET`: Your GitHub OAuth App's Client Secret.
-- `GITHUB_REDIRECT_URL`: The callback URL. For local testing, this is `http://localhost:3002/auth/callback`.
-- `JWT_SECRET`: A strong, random string for signing session tokens. Generate one with `openssl rand -base64 32`.
-- `OPENAI_API_KEY`: Your secret key from OpenAI.
-- `OPENAI_BASE_URL`: (Optional) For using compatible APIs like Azure OpenAI.
-
-### 2. Default Storage (Optional, but Recommended)
-
-This configures the server's built-in storage, used by default.
-
-- `STORAGE_TYPE`: `memory` (default), `sqlite`, `filesystem`, or `s3`.    
-- `DATA_SOURCE_NAME`: Path for the SQLite DB (e.g., `excalidraw.db`).
-- `LOCAL_STORAGE_PATH`: Directory for filesystem storage.
-- `S3_BUCKET_NAME`, `AWS_REGION`, etc.: For S3 storage.
-
-### 3. OpenAI Proxy (Optional)
-
-To enable AI features, set your OpenAI API key.
-
-- `OPENAI_API_KEY`: Your secret key from OpenAI.
-- `OPENAI_BASE_URL`: (Optional) For using compatible APIs like Azure OpenAI.
-
-### 4. Frontend Configuration
-
-Frontend storage adapters (like Cloudflare KV, S3) are configured directly in the application's UI settings after you log in. This is by design: your private cloud credentials are only ever stored in your browser's session and are never sent to the backend server.
-
-### Example `.env.example`
-
-Create a `.env` file in the project root and add the following, filling in your own values.
+### Core settings
 
 ```env
-# Backend Server Configuration
-# Get from https://github.com/settings/developers
-GITHUB_CLIENT_ID=your_github_client_id
-GITHUB_CLIENT_SECRET=your_github_client_secret
-GITHUB_REDIRECT_URL=http://localhost:3002/auth/callback
+PORT=3002
+APP_BASE_URL=https://backend.example.com
+JWT_SECRET=change-me
+```
 
-# Generate with: openssl rand -base64 32
-JWT_SECRET=your_super_secret_jwt_string
+### Dex / OIDC settings
 
-# Default Storage (SQLite)
+```env
+DEX_ISSUER=https://dex.example.com/dex
+DEX_CLIENT_ID=excalidraw-backend
+DEX_CLIENT_SECRET=change-me
+DEX_REDIRECT_URI=https://backend.example.com/auth/callback
+DEX_SCOPES=openid profile email groups
+```
+
+### Storage settings
+
+#### SQLite
+```env
 STORAGE_TYPE=sqlite
-DATA_SOURCE_NAME=excalidraw.db
-
-# Optional OpenAI Proxy
-OPENAI_API_KEY=sk-your_openai_api_key
+DATA_SOURCE_NAME=/data/excalidraw.db
 ```
 
-## Building from Source
-
-The process is similar to before, but now requires the Go backend to be built.
-
-### Using Docker (Recommended)
-
-```bash
-# Clone the repository with submodules
-git clone https://github.com/PatWie/excalidraw-complete.git --recursive
-cd excalidraw-complete
-
-# Build the Docker image
-# This handles the frontend build, patching, and Go backend compilation.
-docker build -t excalidraw-complete -f excalidraw-complete.Dockerfile .
-
-# Run the container, providing the environment variables
-docker run -p 3002:3002 \
-  -e GITHUB_CLIENT_ID="your_id" \
-  -e GITHUB_CLIENT_SECRET="your_secret" \
-  -e GITHUB_REDIRECT_URL="http://localhost:3002/auth/callback" \
-  -e JWT_SECRET="your_jwt_secret" \
-  -e STORAGE_TYPE="sqlite" \
-  -e DATA_SOURCE_NAME="excalidraw.db" \
-  -e OPENAI_API_KEY="your_openai_api_key" \
-  excalidraw-complete
+#### Filesystem
+```env
+STORAGE_TYPE=filesystem
+LOCAL_STORAGE_PATH=/data/storage
 ```
 
-### Manual Build
+#### S3
+```env
+STORAGE_TYPE=s3
+S3_BUCKET_NAME=excalidraw
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=change-me
+AWS_SECRET_ACCESS_KEY=change-me
+S3_ENDPOINT=
+S3_FORCE_PATH_STYLE=false
+```
 
-1.  **Build Frontend**: Follow the steps in the original README to patch and build the Excalidraw frontend inside the `excalidraw/` submodule.
-2.  **Copy Frontend**: Ensure the built frontend from `excalidraw/excalidraw-app/build` is copied to the `frontend/` directory in the root.
-3.  **Build Go Backend**:
-    ```bash
-    go build -o excalidraw-complete main.go
-    ```
-4.  **Run**:
-    ```bash
-    # Set environment variables first
-    ./excalidraw-complete
-    ```
----
+### OpenAI proxy
 
-Excalidraw is a fantastic tool. This project aims to make a powerful, data-secure version of it accessible to everyone. Contributions are welcome!
+```env
+OPENAI_API_KEY=
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
+
+## Expected API areas
+
+This backend is intended to expose endpoints in these areas:
+
+- `/auth/*`
+- `/api/canvases/*`
+- `/api/share/*`
+- `/api/documents/*`
+- `/api/ai/*`
+- `/healthz`
+- `/readyz`
+
+## Suggested integration with an existing stack
+
+This backend is designed to be added alongside an existing Excalidraw deployment, for example:
+
+- `app` for the frontend
+- `storage` for existing scene/image storage
+- `room` for realtime collaboration
+- `mongodb` for the current storage backend
+- `backend_full` for authentication, canvas management, sharing, and AI
+
+This lets you introduce platform features incrementally without replacing your current stack immediately.
+
+## Development goals
+
+The current target architecture is:
+
+```text
+backend_full =
+  Dex authentication
++ multi-canvas management
++ sqlite/filesystem/s3 storage
++ sharing/document access
++ OpenAI proxy
+- embedded frontend
+- collaboration room
+- Cloudflare worker
+- GitHub OAuth dependency
+```
+
+## Notes
+
+- Use **Dex** when you want LDAP-backed authentication.
+- Start with **SQLite** unless you already need filesystem or S3.
+- Keep OpenAI proxy optional so the backend can run without AI features.
+- This repository is intended to be packaged as a **backend-only Docker image**.
+
+## Status
+
+This repository is currently being refactored from the original `excalidraw-full` layout into a dedicated backend service.
+
+The recommended order of work is:
+
+1. Finalize backend-only cleanup
+2. Verify routes and handlers
+3. Verify storage implementations
+4. Add Dockerfile
+5. Build and publish image
+6. Add the service into your existing `compose.yaml`
