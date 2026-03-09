@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: excalidraw-backend:6
+    image: excalidraw-backend:1.0.1
     container_name: excalidraw-backend-test
     restart: unless-stopped
     depends_on:

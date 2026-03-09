@@ -34,7 +34,6 @@ func HandleListCanvases(store stores.Store) http.HandlerFunc {
 			return
 		}
 
-		// If canvases is nil (e.g., user has no canvases), return an empty slice instead of null.
 		if canvases == nil {
 			canvases = []*core.Canvas{}
 		}
@@ -66,16 +65,19 @@ func HandleGetCanvas(store stores.Store) http.HandlerFunc {
 				"userID": claims.Subject,
 				"key":    key,
 			}).Warn("Failed to get canvas")
-			// This could be a not found error or a real server error.
-			// For simplicity, we'll return 404, but in a real app, you might want to distinguish.
 			render.Status(r, http.StatusNotFound)
 			render.JSON(w, r, map[string]string{"error": "Canvas not found"})
 			return
 		}
 
-		// The canvas data is returned as raw bytes.
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(canvas.Data)
+		render.JSON(w, r, map[string]any{
+			"id":        canvas.ID,
+			"name":      canvas.Name,
+			"thumbnail": canvas.Thumbnail,
+			"data":      string(canvas.Data),
+			"createdAt": canvas.CreatedAt,
+			"updatedAt": canvas.UpdatedAt,
+		})
 	}
 }
 
@@ -107,22 +109,25 @@ func HandleSaveCanvas(store stores.Store) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		// For simplicity, we use the key as the name. A more advanced implementation
-		// might parse a name from the body or have a separate field.
 		var canvasData struct {
-			AppState struct {
+			Name      string `json:"name"`
+			Thumbnail string `json:"thumbnail"`
+			Data      any    `json:"data"`
+			AppState  struct {
 				Name string `json:"name"`
 			} `json:"appState"`
-			Thumbnail string `json:"thumbnail"`
 		}
-		// We make a copy of the body because json.Unmarshal will consume the reader.
+
 		bodyCopy := make([]byte, len(body))
 		copy(bodyCopy, body)
 
-		canvasName := key // Default to key
+		canvasName := key
 		var canvasThumbnail string
+
 		if err := json.Unmarshal(bodyCopy, &canvasData); err == nil {
-			if canvasData.AppState.Name != "" {
+			if canvasData.Name != "" {
+				canvasName = canvasData.Name
+			} else if canvasData.AppState.Name != "" {
 				canvasName = canvasData.AppState.Name
 			}
 			canvasThumbnail = canvasData.Thumbnail
@@ -148,6 +153,11 @@ func HandleSaveCanvas(store stores.Store) http.HandlerFunc {
 		}
 
 		render.Status(r, http.StatusOK)
+		render.JSON(w, r, map[string]any{
+			"id":        canvas.ID,
+			"name":      canvas.Name,
+			"thumbnail": canvas.Thumbnail,
+		})
 	}
 }
 
