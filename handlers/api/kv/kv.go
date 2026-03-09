@@ -133,12 +133,17 @@ func HandleSaveCanvas(store stores.Store) http.HandlerFunc {
 			canvasThumbnail = canvasData.Thumbnail
 		}
 
+		dataToStore := body
+		if len(canvasData.Data) > 0 {
+			dataToStore = canvasData.Data
+		}
+
 		canvas := &core.Canvas{
 			ID:        key,
 			UserID:    claims.Subject,
 			Name:      canvasName,
 			Thumbnail: canvasThumbnail,
-			Data:      body,
+			Data:      dataToStore,
 		}
 
 		if err := store.Save(r.Context(), canvas); err != nil {
