@@ -6,13 +6,18 @@ import (
 	"excalidraw-complete/handlers/auth"
 	"excalidraw-complete/middleware"
 	"excalidraw-complete/stores"
-	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/sirupsen/logrus"
 )
+
+type canvasPayload struct {
+	Name      string          `json:"name"`
+	Thumbnail string          `json:"thumbnail"`
+	Data      json.RawMessage `json:"data"`
+}
 
 func HandleListCanvases(store stores.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +79,7 @@ func HandleGetCanvas(store stores.Store) http.HandlerFunc {
 			"id":        canvas.ID,
 			"name":      canvas.Name,
 			"thumbnail": canvas.Thumbnail,
-			"data":      string(canvas.Data),
+			"data":      json.RawMessage(canvas.Data),
 			"createdAt": canvas.CreatedAt,
 			"updatedAt": canvas.UpdatedAt,
 		})
@@ -97,53 +102,29 @@ func HandleSaveCanvas(store stores.Store) http.HandlerFunc {
 			return
 		}
 
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
+		defer r.Body.Close()
+
+		var payload canvasPayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			logrus.WithFields(logrus.Fields{
 				"error": err,
 				"key":   key,
-			}).Error("Failed to read request body")
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to read request body"})
+			}).Error("Failed to decode request body")
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, map[string]string{"error": "Invalid request body"})
 			return
 		}
-		defer r.Body.Close()
 
-		var canvasData struct {
-			Name      string `json:"name"`
-			Thumbnail string `json:"thumbnail"`
-			Data      any    `json:"data"`
-			AppState  struct {
-				Name string `json:"name"`
-			} `json:"appState"`
-		}
-
-		bodyCopy := make([]byte, len(body))
-		copy(bodyCopy, body)
-
-		canvasName := key
-		var canvasThumbnail string
-
-		if err := json.Unmarshal(bodyCopy, &canvasData); err == nil {
-			if canvasData.Name != "" {
-				canvasName = canvasData.Name
-			} else if canvasData.AppState.Name != "" {
-				canvasName = canvasData.AppState.Name
-			}
-			canvasThumbnail = canvasData.Thumbnail
-		}
-
-		dataToStore := body
-		if len(canvasData.Data) > 0 {
-			dataToStore = canvasData.Data
+		if payload.Name == "" {
+			payload.Name = key
 		}
 
 		canvas := &core.Canvas{
 			ID:        key,
 			UserID:    claims.Subject,
-			Name:      canvasName,
-			Thumbnail: canvasThumbnail,
-			Data:      dataToStore,
+			Name:      payload.Name,
+			Thumbnail: payload.Thumbnail,
+			Data:      []byte(payload.Data),
 		}
 
 		if err := store.Save(r.Context(), canvas); err != nil {
@@ -194,5 +175,6 @@ func HandleDeleteCanvas(store stores.Store) http.HandlerFunc {
 		}
 
 		render.Status(r, http.StatusOK)
+		render.JSON(w, r, map[string]string{"status": "deleted"})
 	}
 }
